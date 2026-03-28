@@ -106,7 +106,7 @@ def caculate_square_x(corners):
             pos_h = (int((tl[0] + bl[0]) / 2) - 80, int((tl[1] + bl[1]) / 2))
             pos = [pos_w,pos_h]
             
-            return w_pixel,h_pixel,rect,text,pos
+            return w_pixel,h_pixel,text,pos
 
 def caculate_triangle_x(corners):
     # pts 是 (3, 2) 的坐标阵
@@ -120,10 +120,10 @@ def caculate_triangle_x(corners):
     
     # 取平均像素边长
     avg_x = (d1 + d2 + d3) / 3.0
-    
+
     #绘图的一些参数
     text = f"W: {avg_x:.2f}px"
     center = np.mean(pts, axis=0)
     pos = (int(center[0]), int(center[1]))
 
-    return avg_x,pts,text,pos
+    return avg_x,text,pos

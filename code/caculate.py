@@ -23,7 +23,7 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             refined_corners = tools.refine_approx(approx, img_gray)
 
-            w_pixel_ex,h_pixel_ex,rect,text,pos = tools.caculate_square_x(refined_corners)
+            w_pixel_ex,h_pixel_ex,text,pos = tools.caculate_square_x(refined_corners)
 
             # (tl, tr, br, bl) = rect
             # [text_w,text_h] = text
@@ -47,8 +47,8 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             refined_corners = tools.refine_approx(approx, img_gray)
 
-            w_pixel_obj,h_pixel_obj,rect,text,pos = tools.caculate_square_x(refined_corners)
-            (tl, tr, br, bl) = rect
+            w_pixel_obj,h_pixel_obj,text,pos = tools.caculate_square_x(refined_corners)
+            
             [text_w,text_h] = text
             [pos_w,pos_h] = pos
             print(f"精确化后的目标像素宽度 w_pixel_obj: {w_pixel_obj:.2f},精确化后的目标像素高度 h_pixel_obj: {h_pixel_obj:.2f}")
@@ -82,7 +82,7 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             refined_corners = tools.refine_approx(approx, img_gray)
 
-            x_pixel,pts,text,pos = tools.caculate_triangle_x(refined_corners)
+            x_pixel,text,pos = tools.caculate_triangle_x(refined_corners)
 
             print(f"精确化后的目标三角形像素边长 x_pixel: {x_pixel:.2f}")
 

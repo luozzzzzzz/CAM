@@ -25,9 +25,9 @@ def get_focal_length(image_path, real_distance, real_height=28.3):
             refined_corners = tools.refine_approx(approx, img_gray)
             #计算得到像素宽度、高度以及有序端点
 
-            w_pixel,h_pixel,rect,text,pos = tools.caculate_square_x(refined_corners)
+            w_pixel,h_pixel,text,pos = tools.caculate_square_x(refined_corners)
 
-            (tl, tr, br, bl) = rect
+            
             [text_w,text_h] = text
             [pos_w,pos_h] = pos
 
