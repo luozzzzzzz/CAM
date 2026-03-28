@@ -62,7 +62,7 @@ def refine_approx(approx,img_gray):
     # 此时 refined_corners 里的坐标是带小数的，比如 (120.45, 345.78)用这些点去算距离 D，精度会有一个质的飞跃。
     return refined_corners
 
-def caculate_x(corners):
+def caculate_square_x(corners):
             """
             输入精确后的端点，得到多边形的边长
             param corners:精确后的端点
@@ -107,3 +107,23 @@ def caculate_x(corners):
             pos = [pos_w,pos_h]
             
             return w_pixel,h_pixel,rect,text,pos
+
+def caculate_triangle_x(corners):
+    # pts 是 (3, 2) 的坐标阵
+    pts = np.zeros((3, 2), dtype="float32")
+    pts[0], pts[1], pts[2] = corners[0], corners[1], corners[2]
+    
+    # 计算三边像素距离
+    d1 = np.linalg.norm(pts[0] - pts[1])
+    d2 = np.linalg.norm(pts[1] - pts[2])
+    d3 = np.linalg.norm(pts[2] - pts[0])
+    
+    # 取平均像素边长
+    avg_x = (d1 + d2 + d3) / 3.0
+    
+    #绘图的一些参数
+    text = f"W: {avg_x:.2f}px"
+    center = np.mean(pts, axis=0)
+    pos = (int(center[0]), int(center[1]))
+
+    return avg_x,pts,text,pos

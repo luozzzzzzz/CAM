@@ -23,7 +23,7 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             refined_corners = tools.refine_approx(approx, img_gray)
 
-            w_pixel_ex,h_pixel_ex,rect,text,pos = tools.caculate_x(refined_corners)
+            w_pixel_ex,h_pixel_ex,rect,text,pos = tools.caculate_square_x(refined_corners)
 
             # (tl, tr, br, bl) = rect
             # [text_w,text_h] = text
@@ -47,14 +47,15 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             refined_corners = tools.refine_approx(approx, img_gray)
 
-            w_pixel_obj,h_pixel_obj,rect,text,pos = tools.caculate_x(refined_corners)
+            w_pixel_obj,h_pixel_obj,rect,text,pos = tools.caculate_square_x(refined_corners)
             (tl, tr, br, bl) = rect
             [text_w,text_h] = text
             [pos_w,pos_h] = pos
             print(f"精确化后的目标像素宽度 w_pixel_obj: {w_pixel_obj:.2f},精确化后的目标像素高度 h_pixel_obj: {h_pixel_obj:.2f}")
+            
             # 2. 计算实际边长
-            x_1 = h_pixel_obj * h_outcontour / h_pixel_obj  # 这里需要根据实际情况调整公式
-            x_2 = w_pixel_obj * w_outcontour / w_pixel_obj  # 这里需要根据实际情况调整公式
+            x_1 = h_pixel_obj * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
+            x_2 = w_pixel_obj * w_outcontour / w_pixel_ex  # 这里需要根据实际情况调整公式
             x = (x_1 + x_2) / 2
 
             print(f"精确化后的目标实际边长 x: {x:.2f}")
@@ -66,17 +67,6 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             cv2.drawContours(img_all, [approx], -1, (0, 255, 0), 2)
             
-            #  格式化文字 (保留两位小数)
-            text_w = f"W: {w_pixel_obj:.2f}px"
-            text_h = f"H: {h_pixel_obj:.2f}px"
-
-            # 计算标点位置 (取边中点再偏移一点，避免压线)
-            # 宽度的标点：顶边 (tl 和 tr) 的中心
-            pos_w = (int((tl[0] + tr[0]) / 2), int((tl[1] + tr[1]) / 2) - 10)
-
-            # 高度的标点：左边 (tl 和 bl) 的中心
-            pos_h = (int((tl[0] + bl[0]) / 2) - 80, int((tl[1] + bl[1]) / 2))
-
             # 绘制文字
             font = cv2.FONT_HERSHEY_SIMPLEX
             cv2.putText(img_all, text_w, pos_w, font, 0.6, (0, 255, 0), 2)
@@ -92,35 +82,13 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             refined_corners = tools.refine_approx(approx, img_gray)
 
-            # 1. 计算像素长度和宽度（重新排序角点）
-            rect = np.zeros((4, 2), dtype="float32")   
+            x_pixel,pts,text,pos = tools.caculate_triangle_x(refined_corners)
 
-            sum = refined_corners.sum(axis=1)
-            rect[0] = refined_corners[np.argmin(sum)]       # 左上 TL
-            rect[2] = refined_corners[np.argmax(sum)]       # 右下 BR
-            diff = np.diff(refined_corners, axis=1)
-            rect[1] = refined_corners[np.argmin(diff)]    # 右上 TR
-            rect[3] = refined_corners[np.argmax(diff)]    # 左下 BL
+            print(f"精确化后的目标三角形像素边长 x_pixel: {x_pixel:.2f}")
 
-            (tl, tr, br, bl) = rect
-    
-            # 计算顶边和底边的像素宽度
-            width_top = np.linalg.norm(tr - tl)
-            width_bottom = np.linalg.norm(br - bl)
-            
-            # 计算左边和右边的像素高度
-            height_left = np.linalg.norm(tl - bl)
-            height_right = np.linalg.norm(tr - br)
-            
-            # 在透视投影中，对边不一定相等
-            # 计算平均值，或者根据竞赛需求取最大值
-            w_pixel_obj = (width_top + width_bottom) / 2
-            h_pixel_obj = (height_left + height_right) / 2
-            print(f"精确化后的目标像素宽度 w_pixel_obj: {w_pixel_obj:.2f},精确化后的目标像素高度 h_pixel_obj: {h_pixel_obj:.2f}")
             # 2. 计算实际边长
-            x_1 = h_pixel_obj * h_outcontour / h_pixel_obj  # 这里需要根据实际情况调整公式
-            x_2 = w_pixel_obj * w_outcontour / w_pixel_obj  # 这里需要根据实际情况调整公式
-            x = (x_1 + x_2) / 2
+            
+            x = x_pixel * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
 
             print(f"精确化后的目标实际边长 x: {x:.2f}")
 
@@ -131,22 +99,11 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             cv2.drawContours(img_all, [approx], -1, (0, 255, 0), 2)
             
-            #  格式化文字 (保留两位小数)
-            text_w = f"W: {w_pixel_obj:.2f}px"
-            text_h = f"H: {h_pixel_obj:.2f}px"
-
-            # 计算标点位置 (取边中点再偏移一点，避免压线)
-            # 宽度的标点：顶边 (tl 和 tr) 的中心
-            pos_w = (int((tl[0] + tr[0]) / 2), int((tl[1] + tr[1]) / 2) - 10)
-
-            # 高度的标点：左边 (tl 和 bl) 的中心
-            pos_h = (int((tl[0] + bl[0]) / 2) - 80, int((tl[1] + bl[1]) / 2))
-
+           
             # 绘制文字
             font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img_all, text_w, pos_w, font, 0.6, (0, 255, 0), 2)
-            cv2.putText(img_all, text_h, pos_h, font, 0.6, (0, 255, 0), 2)
-            cv2.imshow("approx_rectangle", img_all)#显示拟合的矩形
+            cv2.putText(img_all, text, pos, font, 0.6, (0, 255, 0), 2)
+            cv2.imshow("approx_tritangle", img_all)#显示拟合的三角形
             cv2.waitKey(0)
             # cv2.imwrite(r"picture/calibration.jpg", img)
 
@@ -161,4 +118,4 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 if __name__ == "__main__":
     image_path = r"picture/3_26_1.png"
     D,x =measure_target(image_path, f_pixel = 700, h_outcontour = 28.3,w_outcontour=21.0, real_side_limit=(10, 16))
-    print(f"距离 D: {D} cm, 边长 x: {x} cm")
+    print(f"距离 D: {D:.2f} cm, 边长 x: {x:.2f} cm")
