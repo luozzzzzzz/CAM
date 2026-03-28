@@ -18,26 +18,45 @@ def get_focal_length(image_path, real_distance, real_height=28.3):
 
     # 2. 预处理：灰度化 -> 高斯滤波 -> 边缘检测
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edged = cv2.Canny(blurred, 50, 150)
 
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    edged = cv2.Canny(blurred, 100, 150)
+    #100：低阈值（threshold1），用于检测弱边缘。梯度值低于此阈值的像素会被丢弃。
+    #150：高阈值（threshold2），用于检测强边缘。梯度值高于此值的像素被认为是确定的边缘。
+
+    cv2.imshow("Edged", edged)
     # 3. 寻找轮廓并排序（取面积最大的，即 A4 纸外框）
-    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        # 画出所有轮廓（绿色）
-    #img_all = img.copy()
-    #cv2.drawContours(img_all, cnts, -1, (0, 255, 0), 2)
-    #cv2.imshow("All Contours", img_all)
+    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    
     
     print(f"轮廓数量：{len(cnts)}")
     cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
+    #用面积与周长之比的方法来过滤掉一些不规则的轮廓，保留更接近矩形的轮廓
+    cnts = [cnt for cnt in cnts if cv2.arcLength(cnt, True) > 0 and cv2.contourArea(cnt) / cv2.arcLength(cnt, True) >= 2.0]
+    cnts = [cnts[i] for i in range(0, len(cnts), 2)]
+    print(f"过滤后轮廓数量：{len(cnts)}")
 
-    # cv2.drawContours(img_all, cnts[0], -1, (0, 255, 0), 2)
-    # cv2.imshow("All Contours", img_all)
+
+    #测试
+    img_cnts = img.copy()
+    img_cnts_1 = img.copy()
+    cv2.drawContours(img_cnts, cnts[0], -1, (0, 255, 0), 2)
+    cv2.drawContours(img_cnts_1, cnts[1], -1, (255, 0, 0), 2)
+    cv2.imshow("Contours", img_cnts)
+    cv2.imshow("Contours_1", img_cnts_1)
+
+    img_all = img.copy()
+    cv2.drawContours(img_all, cnts, -1, (0, 255, 0), 2)
+    cv2.imshow("All Contours", img_all)
 
     if len(cnts) > 0:
         # 假设最大的轮廓就是 A4 纸
         peri = cv2.arcLength(cnts[0], True)
         approx = cv2.approxPolyDP(cnts[0], 0.02 * peri, True)
+        #print(f"第一个轮廓：{approx}")
+
+
         if len(approx) == 4:
             print(f"近似多边形顶点数：{len(approx)}")
 
@@ -89,9 +108,10 @@ def get_focal_length(image_path, real_distance, real_height=28.3):
             img_all = img.copy()
 
             cv2.drawContours(img_all, approx, -1, (0, 255, 0), 2)
-            cv2.imshow("approx", img_all)#显示拟合得到的端点          
+            #cv2.imshow("approx", img_all)#显示拟合得到的端点       
+
             cv2.drawContours(img, [approx], -1, (0, 255, 0), 2)
-            
+           
             #  格式化文字 (保留两位小数)
             text_w = f"W: {w_pixel:.2f}px"
             text_h = f"H: {h_pixel:.2f}px"
@@ -122,7 +142,7 @@ def get_focal_length(image_path, real_distance, real_height=28.3):
 if __name__ == "__main__":
     # --- 用户设定参数 ---
     # 假设你把 A4 纸放在 D = 150cm 处拍了一张照
-    test_distance = 20.0 
+    test_distance = 385
     image_path = r"picture/3_26_1.png" # 替换为你的实拍图路径
     
     f_val = get_focal_length(image_path, test_distance)
