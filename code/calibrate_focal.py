@@ -21,34 +21,16 @@ def get_focal_length(image_path, real_distance, real_height=28.3):
         if len(approx) == 4:
             print(f"近似多边形顶点数：{len(approx)}")
 
+            #进一步精确端点
             refined_corners = tools.refine_approx(approx, img_gray)
+            #计算得到像素宽度、高度以及有序端点
 
-            # 1.重新排序角点并计算长和宽
-            rect = np.zeros((4, 2), dtype="float32")   
-            s = refined_corners.sum(axis=1)
-            rect[0] = refined_corners[np.argmin(s)]       # 左上 TL
-            rect[2] = refined_corners[np.argmax(s)]       # 右下 BR
-            
-            # 计算每个点的坐标之差 (y - x)
-            diff = np.diff(refined_corners, axis=1)
-            rect[1] = refined_corners[np.argmin(diff)]    # 右上 TR
-            rect[3] = refined_corners[np.argmax(diff)]    # 左下 BL
-
+            w_pixel,h_pixel,rect,text,pos = tools.caculate_x(refined_corners)
             (tl, tr, br, bl) = rect
-    
-            # 计算顶边和底边的像素宽度
-            width_top = np.linalg.norm(tr - tl)
-            width_bottom = np.linalg.norm(br - bl)
-            
-            # 计算左边和右边的像素高度
-            height_left = np.linalg.norm(tl - bl)
-            height_right = np.linalg.norm(tr - br)
-            
-            # 在透视投影中，对边不一定相等
-            # 计算平均值，或者根据竞赛需求取最大值
-            w_pixel = (width_top + width_bottom) / 2
-            h_pixel = (height_left + height_right) / 2
-            print(f"精确化后的像素宽度 w_pixel: {w_pixel:.2f},精确化后的像素高度 h_pixel: {h_pixel:.2f}")
+            [text_w,text_h] = text
+            [pos_w,pos_h] = pos
+
+            print(f"精确化后的外边框像素宽度 w_pixel: {w_pixel:.2f},精确化后的外边框像素高度 h_pixel: {h_pixel:.2f}")
 
             # 2. 根据公式计算像素焦距
             f_pixel = (h_pixel * real_distance) / real_height
@@ -62,16 +44,7 @@ def get_focal_length(image_path, real_distance, real_height=28.3):
 
             cv2.drawContours(img_all, [approx], -1, (0, 255, 0), 2)
            
-            #  格式化文字 (保留两位小数)
-            text_w = f"W: {w_pixel:.2f}px"
-            text_h = f"H: {h_pixel:.2f}px"
 
-            # 计算标点位置 (取边中点再偏移一点，避免压线)
-            # 宽度的标点：顶边 (tl 和 tr) 的中心
-            pos_w = (int((tl[0] + tr[0]) / 2), int((tl[1] + tr[1]) / 2) - 10)
-
-            # 高度的标点：左边 (tl 和 bl) 的中心
-            pos_h = (int((tl[0] + bl[0]) / 2) - 80, int((tl[1] + bl[1]) / 2))
 
             # 绘制文字
             font = cv2.FONT_HERSHEY_SIMPLEX

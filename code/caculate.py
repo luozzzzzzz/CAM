@@ -23,30 +23,11 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             refined_corners = tools.refine_approx(approx, img_gray)
 
-            # 1. 计算像素长度和宽度（重新排序角点）
-            rect = np.zeros((4, 2), dtype="float32")   
+            w_pixel_ex,h_pixel_ex,rect,text,pos = tools.caculate_x(refined_corners)
 
-            sum = refined_corners.sum(axis=1)
-            rect[0] = refined_corners[np.argmin(sum)]       # 左上 TL
-            rect[2] = refined_corners[np.argmax(sum)]       # 右下 BR
-            diff = np.diff(refined_corners, axis=1)
-            rect[1] = refined_corners[np.argmin(diff)]    # 右上 TR
-            rect[3] = refined_corners[np.argmax(diff)]    # 左下 BL
-
-            (tl, tr, br, bl) = rect
-    
-            # 计算顶边和底边的像素宽度
-            width_top = np.linalg.norm(tr - tl)
-            width_bottom = np.linalg.norm(br - bl)
-            
-            # 计算左边和右边的像素高度
-            height_left = np.linalg.norm(tl - bl)
-            height_right = np.linalg.norm(tr - br)
-            
-            # 在透视投影中，对边不一定相等
-            # 计算平均值，或者根据竞赛需求取最大值
-            w_pixel_ex = (width_top + width_bottom) / 2
-            h_pixel_ex = (height_left + height_right) / 2
+            # (tl, tr, br, bl) = rect
+            # [text_w,text_h] = text
+            # [pos_w,pos_h] = pos
             print(f"精确化后的外边框像素宽度 w_pixel_ex: {w_pixel_ex:.2f},精确化后的外边框像素高度 h_pixel_ex: {h_pixel_ex:.2f}")
 
             # 2. 根据公式计算
@@ -66,30 +47,10 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
             refined_corners = tools.refine_approx(approx, img_gray)
 
-            # 1. 计算像素长度和宽度（重新排序角点）
-            rect = np.zeros((4, 2), dtype="float32")   
-
-            sum = refined_corners.sum(axis=1)
-            rect[0] = refined_corners[np.argmin(sum)]       # 左上 TL
-            rect[2] = refined_corners[np.argmax(sum)]       # 右下 BR
-            diff = np.diff(refined_corners, axis=1)
-            rect[1] = refined_corners[np.argmin(diff)]    # 右上 TR
-            rect[3] = refined_corners[np.argmax(diff)]    # 左下 BL
-
+            w_pixel_obj,h_pixel_obj,rect,text,pos = tools.caculate_x(refined_corners)
             (tl, tr, br, bl) = rect
-    
-            # 计算顶边和底边的像素宽度
-            width_top = np.linalg.norm(tr - tl)
-            width_bottom = np.linalg.norm(br - bl)
-            
-            # 计算左边和右边的像素高度
-            height_left = np.linalg.norm(tl - bl)
-            height_right = np.linalg.norm(tr - br)
-            
-            # 在透视投影中，对边不一定相等
-            # 计算平均值，或者根据竞赛需求取最大值
-            w_pixel_obj = (width_top + width_bottom) / 2
-            h_pixel_obj = (height_left + height_right) / 2
+            [text_w,text_h] = text
+            [pos_w,pos_h] = pos
             print(f"精确化后的目标像素宽度 w_pixel_obj: {w_pixel_obj:.2f},精确化后的目标像素高度 h_pixel_obj: {h_pixel_obj:.2f}")
             # 2. 计算实际边长
             x_1 = h_pixel_obj * h_outcontour / h_pixel_obj  # 这里需要根据实际情况调整公式

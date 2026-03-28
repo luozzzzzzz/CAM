@@ -61,3 +61,49 @@ def refine_approx(approx,img_gray):
 
     # 此时 refined_corners 里的坐标是带小数的，比如 (120.45, 345.78)用这些点去算距离 D，精度会有一个质的飞跃。
     return refined_corners
+
+def caculate_x(corners):
+            """
+            输入精确后的端点，得到多边形的边长
+            param corners:精确后的端点
+            param rect:排序后的端点
+            """
+     # 1. 计算像素长度和宽度（重新排序角点）
+            rect = np.zeros((4, 2), dtype="float32")   
+
+            sum = corners.sum(axis=1)
+            rect[0] = corners[np.argmin(sum)]       # 左上 TL
+            rect[2] = corners[np.argmax(sum)]       # 右下 BR
+            diff = np.diff(corners, axis=1)
+            rect[1] = corners[np.argmin(diff)]    # 右上 TR
+            rect[3] = corners[np.argmax(diff)]    # 左下 BL
+
+            (tl, tr, br, bl) = rect
+    
+            # 计算顶边和底边的像素宽度
+            width_top = np.linalg.norm(tr - tl)
+            width_bottom = np.linalg.norm(br - bl)
+            
+            # 计算左边和右边的像素高度
+            height_left = np.linalg.norm(tl - bl)
+            height_right = np.linalg.norm(tr - br)
+            
+            # 在透视投影中，对边不一定相等
+            # 计算平均值，或者根据竞赛需求取最大值
+            w_pixel = (width_top + width_bottom) / 2
+            h_pixel = (height_left + height_right) / 2
+
+            #  格式化文字 (保留两位小数)
+            text_w = f"W: {w_pixel:.2f}px"
+            text_h = f"H: {h_pixel:.2f}px"
+            text = [text_w,text_h]
+
+            # 计算标点位置 (取边中点再偏移一点，避免压线)
+            # 宽度的标点：顶边 (tl 和 tr) 的中心
+            pos_w = (int((tl[0] + tr[0]) / 2), int((tl[1] + tr[1]) / 2) - 10)
+
+            # 高度的标点：左边 (tl 和 bl) 的中心
+            pos_h = (int((tl[0] + bl[0]) / 2) - 80, int((tl[1] + bl[1]) / 2))
+            pos = [pos_w,pos_h]
+            
+            return w_pixel,h_pixel,rect,text,pos
