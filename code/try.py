@@ -1,155 +1,152 @@
 import cv2
 import numpy as np
+import tools 
 
-def get_focal_length(image_path, real_distance, real_height=28.3):
+def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,real_side_limit=(10, 16)):
     """
-    通过已知距离的照片计算像素焦距
-    :param image_path: 用于校准的照片路径
-    :param real_distance: 拍摄时目标物到基准线的物理距离 (D)，单位 cm
-    :param real_height: 参照物(A4纸)的实际物理高度，单位 cm
-    :return: f_pixel (像素焦距)
+    测量图像中正方形的距离 D 和边长 x
+    :param image_path: 图片路径
+    :param f_pixel: 相机的像素焦距 (通过预先测量获得)
+    :param real_side_limit: 题目要求的边长范围 (cm)
+    :return: D (距离), x (边长)
     """
-    # 1. 加载图片
-    img = cv2.imread(image_path)
-    if img is None:
-        print("错误：无法加载图片")
-        return None
-    print(f"图片大小：{img.shape[0]} x {img.shape[1]}")
-
-    # 2. 预处理：灰度化 -> 高斯滤波 -> 边缘检测
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-
-    edged = cv2.Canny(blurred, 100, 150)
-    #100：低阈值（threshold1），用于检测弱边缘。梯度值低于此阈值的像素会被丢弃。
-    #150：高阈值（threshold2），用于检测强边缘。梯度值高于此值的像素被认为是确定的边缘。
-
-    cv2.imshow("Edged", edged)
-    # 3. 寻找轮廓并排序（取面积最大的，即 A4 纸外框）
-    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    
-    
-    print(f"轮廓数量：{len(cnts)}")
-    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
-    #用面积与周长之比的方法来过滤掉一些不规则的轮廓，保留更接近矩形的轮廓
-    cnts = [cnt for cnt in cnts if cv2.arcLength(cnt, True) > 0 and cv2.contourArea(cnt) / cv2.arcLength(cnt, True) >= 2.0]
-    cnts = [cnts[i] for i in range(0, len(cnts), 2)]
-    print(f"过滤后轮廓数量：{len(cnts)}")
-
-
-    #测试
-    img_cnts = img.copy()
-    img_cnts_1 = img.copy()
-    cv2.drawContours(img_cnts, cnts[0], -1, (0, 255, 0), 2)
-    cv2.drawContours(img_cnts_1, cnts[1], -1, (255, 0, 0), 2)
-    cv2.imshow("Contours", img_cnts)
-    cv2.imshow("Contours_1", img_cnts_1)
-
-    img_all = img.copy()
-    cv2.drawContours(img_all, cnts, -1, (0, 255, 0), 2)
-    cv2.imshow("All Contours", img_all)
+    cnts,img_gray = tools.get_conTours(image_path)
 
     if len(cnts) > 0:
+        #一、根据外轮廓计算距离 D
         # 假设最大的轮廓就是 A4 纸
         peri = cv2.arcLength(cnts[0], True)
         approx = cv2.approxPolyDP(cnts[0], 0.02 * peri, True)
-        #print(f"第一个轮廓：{approx}")
-
 
         if len(approx) == 4:
-            print(f"近似多边形顶点数：{len(approx)}")
+            #print(f"外轮廓近似多边形顶点数：{len(approx)}")
 
-            # 4. 增加顶点精度 将 approx 转换为 float32 格式
-            corners = np.float32(approx).reshape(-1, 2)
+            refined_corners = tools.refine_approx(approx, img_gray)
 
-            # 设置亚像素搜索停止准则
-            criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+            w_pixel_ex,h_pixel_ex,text,pos = tools.caculate_square_x(refined_corners)
 
-            # 在原灰度图中精细化角点位置
-            # gray 是预处理后的灰度图，(5,5) 是搜索窗口大小
-            refined_corners = cv2.cornerSubPix(gray, corners, (5, 5), (-1, -1), criteria)
-
-            # 此时 refined_corners 里的坐标是带小数的，比如 (120.45, 345.78)用这些点去算距离 D，精度会有一个质的飞跃。
-
-            # 5. 重新排序角点并计算长和宽
-            rect = np.zeros((4, 2), dtype="float32")   
-            s = refined_corners.sum(axis=1)
-            rect[0] = refined_corners[np.argmin(s)]       # 左上 TL
-            rect[2] = refined_corners[np.argmax(s)]       # 右下 BR
             
-            # 计算每个点的坐标之差 (y - x)
-            diff = np.diff(refined_corners, axis=1)
-            rect[1] = refined_corners[np.argmin(diff)]    # 右上 TR
-            rect[3] = refined_corners[np.argmax(diff)]    # 左下 BL
+            # [text_w,text_h] = text
+            # [pos_w,pos_h] = pos
 
-            (tl, tr, br, bl) = rect
-    
-            # 计算顶边和底边的像素宽度
-            width_top = np.linalg.norm(tr - tl)
-            width_bottom = np.linalg.norm(br - bl)
+            #print(f"精确化后的外边框像素宽度 w_pixel_ex: {w_pixel_ex:.2f},精确化后的外边框像素高度 h_pixel_ex: {h_pixel_ex:.2f}")
+
+            # 2. 根据公式计算
+ 
+            distance_1 = h_outcontour * f_pixel / h_pixel_ex
+            distance_2 = w_outcontour * f_pixel / w_pixel_ex
+            distance = (distance_1 + distance_2) / 2
+            #print(f"距离 D: {distance:.2f} cm")
+
+        # 二、计算边长 x
+
+        peri = cv2.arcLength(cnts[-1], True)
+        approx = cv2.approxPolyDP(cnts[-1], 0.02 * peri, True)#第二个参数为拟合的多边形与原始轮廓的最大距离，越小越精确
+
+        if len(approx) == 4:
+            print(f"---目标为正方形!---，顶点数：{len(approx)}")
+
+            refined_corners = tools.refine_approx(approx, img_gray)
+
+            w_pixel_obj,h_pixel_obj,text,pos = tools.caculate_square_x(refined_corners)
             
-            # 计算左边和右边的像素高度
-            height_left = np.linalg.norm(tl - bl)
-            height_right = np.linalg.norm(tr - br)
+            [text_w,text_h] = text
+            [pos_w,pos_h] = pos
+            #print(f"精确化后的目标像素宽度 w_pixel_obj: {w_pixel_obj:.2f},精确化后的目标像素高度 h_pixel_obj: {h_pixel_obj:.2f}")
             
-            # 在透视投影中，对边不一定相等
-            # 计算平均值，或者根据竞赛需求取最大值
-            w_pixel = (width_top + width_bottom) / 2
-            h_pixel = (height_left + height_right) / 2
-            print(f"精确化后的像素宽度 w_pixel: {w_pixel:.2f},精确化后的像素高度 h_pixel: {h_pixel:.2f}")
+            # 2. 计算实际边长
+            x_1 = h_pixel_obj * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
+            x_2 = w_pixel_obj * w_outcontour / w_pixel_ex  # 这里需要根据实际情况调整公式
+            x = (x_1 + x_2) / 2
 
-            # 6. 根据公式计算像素焦距
+            #print(f"精确化后的目标实际边长 x: {x:.2f}")
 
-            # f_pixel = (h_pixel * D) / H
-            f_pixel = (h_pixel * real_distance) / real_height
 
-            # 7. 绘制识别结果用于预览确认
-            img_all = img.copy()
+            # 3. 绘制识别结果用于预览确认
+            img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)  # 转回彩色图以便绘制彩色轮廓
+            img_all = img.copy()      
 
-            cv2.drawContours(img_all, approx, -1, (0, 255, 0), 2)
-            #cv2.imshow("approx", img_all)#显示拟合得到的端点       
-
-            cv2.drawContours(img, [approx], -1, (0, 255, 0), 2)
-           
-            #  格式化文字 (保留两位小数)
-            text_w = f"W: {w_pixel:.2f}px"
-            text_h = f"H: {h_pixel:.2f}px"
-
-            # 计算标点位置 (取边中点再偏移一点，避免压线)
-            # 宽度的标点：顶边 (tl 和 tr) 的中心
-            pos_w = (int((tl[0] + tr[0]) / 2), int((tl[1] + tr[1]) / 2) - 10)
-
-            # 高度的标点：左边 (tl 和 bl) 的中心
-            pos_h = (int((tl[0] + bl[0]) / 2) - 80, int((tl[1] + bl[1]) / 2))
-
+            cv2.drawContours(img_all, [approx], -1, (0, 255, 0), 2)
+            
             # 绘制文字
             font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img, text_w, pos_w, font, 0.6, (0, 255, 0), 2)
-            cv2.putText(img, text_h, pos_h, font, 0.6, (0, 255, 0), 2)
-            cv2.imshow("approx_rectangle", img)#显示拟合的矩形
+            cv2.putText(img_all, text_w, pos_w, font, 0.6, (0, 255, 0), 2)
+            cv2.putText(img_all, text_h, pos_h, font, 0.6, (0, 255, 0), 2)
+            cv2.imshow("approx_rectangle", img_all)#显示拟合的矩形
             cv2.waitKey(0)
             # cv2.imwrite(r"picture/calibration.jpg", img)
 
-            
+            return distance, x
+        
+        elif len(approx) == 3:
+            print(f"---目标为三角形！，顶点数：{len(approx)}---")
 
-            return f_pixel
+            refined_corners = tools.refine_approx(approx, img_gray)
+
+            x_pixel,text,pos = tools.caculate_triangle_x(refined_corners)
+
+            #print(f"精确化后的目标三角形像素边长 x_pixel: {x_pixel:.2f}")
+
+            # 2. 计算实际边长
             
+            x = x_pixel * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
+
+            #print(f"精确化后的目标实际边长 x: {x:.2f}")
+
+
+            # 3. 绘制识别结果用于预览确认
+            img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)  # 转回彩色图以便绘制彩色轮廓
+            img_all = img.copy()      
+
+            cv2.drawContours(img_all, [approx], -1, (0, 255, 0), 2)
+            
+           
+            # 绘制文字
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(img_all, text, pos, font, 0.6, (0, 255, 0), 2)
+            cv2.imshow("approx_tritangle", img_all)#显示拟合的三角形
+            cv2.waitKey(0)
+            # cv2.imwrite(r"picture/calibration.jpg", img)
+
+            return distance, x
+        elif len(approx) > 4:
+
+            print(f"---目标为圆形！---")
+            (x, y), radius = cv2.minEnclosingCircle(cnts[-1])#拟合最小外接圆
+            D_pixel = radius * 2
+            #print(f"拟合圆的像素直径 D_pixel: {D_pixel:.2f}")
+            
+    
+            # 2. 计算实际直径
+            Dia = D_pixel * h_outcontour / h_pixel_ex
+            #print(f"目标圆的实际直径 Dia: {Dia:.2f} cm")
+
+            # 3. 绘制识别结果用于预览确认
+            img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
+            img_all = img.copy()     
+            
+            text = f"Dia: {Dia:.2f}cm"
+            # 获取文字大小以实现居中
+            (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+
+            # 计算位置：圆心坐标 - (文字宽度一半, 向上偏移)
+            pos = (int(x - tw / 2), int(y - th / 2 - 10))
+
+        
+            # 画圆和标注
+            cv2.circle(img_all, pos, int(radius), (0, 255, 0), 2) # 画出识别到的圆
+            cv2.putText(img_all, text, pos, cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            cv2.imshow("approx_circle", img_all)#显示拟合的圆形
+            cv2.waitKey(0)
+
+            return distance, Dia
+
+
     else:
         print("未识别到目标轮廓")
         return None
 
 if __name__ == "__main__":
-    # --- 用户设定参数 ---
-    # 假设你把 A4 纸放在 D = 150cm 处拍了一张照
-    test_distance = 385
-    image_path = r"picture/3_26_1.png" # 替换为你的实拍图路径
-    
-    f_val = get_focal_length(image_path, test_distance)
-    
-    if f_val:
-        print("-" * 30)
-        print(f"校准成功！")
-        print(f"计算得出的像素焦距 f_pixel: {f_val:.2f}")
-        print(f"请将此数值保存到你的主程序配置文件中。")
-        print("-" * 30)
+    image_path = r"picture/test_canny.jpg"
+    D,x =measure_target(image_path, f_pixel = 700, h_outcontour = 28.3,w_outcontour=21.0, real_side_limit=(10, 16))
+    print(f"距离 D: {D:.2f} cm, 边长/直径 x: {x:.2f} cm")
