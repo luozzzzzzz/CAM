@@ -1,8 +1,11 @@
-from maix import image, display, app, uart, touchscreen, time, camera
+from maix import image, display, app, uart, touchscreen, time, camera, nn
 import cv2
 import numpy as np
 import tools
+import tools2
 from struct import pack
+
+model_path = "/root/models/maixhub/263962/model_263962.mud"
 
 def measure_target(image, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,real_side_limit=(10, 16)):
     """
@@ -148,6 +151,69 @@ def measure_target(image, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,real_si
         classes="bad"
         return distance,x,classes
 
+def measure_target_number(classifier,img_show, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,real_side_limit=(10, 16)):
+    """
+    测量 D 和图像中正方形的边长x
+    :param image_path: 图片路径
+    :param f_pixel: 相机的像素焦距 (通过预先测量获得)
+    :param real_side_limit: 题目要求的边长范围 (cm)
+    :return: D (距离), 以编号为键、正方形的x (边长)为值的集合
+    """
+    distance=-1
+    x_labels={}
+
+    img = image.image2cv(img_show, ensure_bgr=False, copy=False)
+    a4_out,a4_in,cnts,img_gray = tools.get_conTours_ex(img)
+    
+    if len(cnts) > 0:
+        #一、根据外轮廓计算距离 D
+
+        # 假设最大的轮廓就是 A4 纸
+        peri = cv2.arcLength(a4_out, True)
+        approx = cv2.approxPolyDP(a4_out, 0.02 * peri, True)
+
+        if len(approx) == 4:
+            #print(f"外轮廓近似多边形顶点数：{len(approx)}")
+
+            # 对A4纸进行透视矫正
+            refined_corners = tools.refine_approx(approx, img_gray)
+            w_pixel_ex,h_pixel_ex,text,pos = tools.caculate_square_x(refined_corners)
+
+            # 2. 根据公式计算
+ 
+            distance_1 = h_outcontour * f_pixel / h_pixel_ex
+            distance_2 = w_outcontour * f_pixel / w_pixel_ex
+            distance = (distance_1 + distance_2) / 2
+            #print(f"距离 D: {distance:.2f} cm")
+        else:
+            #print("未识别到目标轮廓:A4")
+            distance=-1
+            x=-1
+            return distance,x
+
+        # 二、计算边长 四个正方形的x并识别编号
+        
+        for cnt in cnts:
+            #计算各个内部正方形的边长：
+            peri = cv2.arcLength(cnt, True)
+            approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)#第二个参数为拟合的多边形与原始轮廓的最大距离，越小越精确
+            refined_corners = tools.refine_approx(approx, img_gray)
+            w_pixel_obj,h_pixel_obj,_,_ = tools.caculate_square_x(refined_corners)
+            
+            x_1 = h_pixel_obj * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
+            x_2 = w_pixel_obj * w_outcontour / w_pixel_ex  # 这里需要根据实际情况调整公式
+            x = (x_1 + x_2) / 2
+
+            #识别内部各个正方形的编号：
+            square=tools2.extract_square(img,cnt)
+            res = classifier.classify(square)
+            max_idx, max_prob = res[0]
+
+            x_labels[classifier.labels[max_idx]]=x
+    else:
+        print("没有检测到任何边框")
+    return distance,x_labels
+
 # 用于在图像中绘制退出按键
 def is_in_button(x, y, btn_pos):
     return x > btn_pos[0] and x < btn_pos[0] + btn_pos[2] and y > btn_pos[1] and y < btn_pos[1] + btn_pos[3]
@@ -197,10 +263,19 @@ def answer(serial,img_show):
     s=f"{D:.3f},{x:.3f},{classes}\r\n"
     serial.write_str(s)
 
+def answer_number(serial,img_show,classifier,number):
+    D,x_labels=measure_target_number(classifier,img_show,f_pixel = 2705.25, h_outcontour = 28.3,w_outcontour=20.1, real_side_limit=(10, 16))
+    x=x_labels[number]
+    s=f"{D:.3f},{x:.3f}\r\n"
+    serial.write_str(s)
+
 def main(disp):
     cam = camera.Camera(960, 720)  
     cam.skip_frames(30)
     ts=touchscreen.TouchScreen()
+
+    classifier = nn.Classifier(model=model_path,dual_buff=False)
+
 
     img_back = get_back_btn_img(cam.width())
     back_rect = [0, 0, img_back.width(), img_back.height()]
@@ -214,7 +289,6 @@ def main(disp):
 
         rx_data=serial_dev.read().decode()  #以ASCII编码恢复字符串
         if rx_data:
-            print("get rx")
             serial_dev.write_str("hello\r\n")
         if rx_data=="tri":
             answer(serial_dev,img_show)
@@ -222,6 +296,10 @@ def main(disp):
             answer(serial_dev,img_show)
         elif rx_data=="squ":
             answer(serial_dev,img_show)
+        elif rx_data[0:5]=="detect":
+            # 根据要检测的编号返回距离和其中特定编号的正方形
+            number=ord(rx_data[6])-ord('0')
+            answer_number(serial_dev,img_show,classifier,number)
 
         # show by maix.display
         #img_show = image.cv2image(img_cv2, bgr=True, copy=False)

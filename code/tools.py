@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
 
-
-
 def get_conTours(image_path):
     
     """
@@ -19,115 +17,6 @@ def get_conTours(image_path):
 
     # 2. 预处理：灰度化 -> 高斯滤波 -> 边缘检测
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    """
-    gray[gray < 50] = 0
-    gray[gray >= 50] = 255#二值化，主要去除阴影
-    """
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-
-    edged = cv2.Canny(blurred, 100, 150)
-    
-    #100：低阈值（threshold1），用于检测弱边缘。梯度值低于此阈值的像素会被丢弃。
-    #150：高阈值（threshold2），用于检测强边缘。梯度值高于此阈值的像素被认为是确定的边缘。
-
-    cv2.imshow("Edged", edged)
-    
-    # 3. 寻找轮廓并排序（取面积最大的，即 A4 纸外框）
-    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-    
-    #print(f"原始轮廓数量：{len(cnts)}")
-    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
-
-    # 4.用面积与周长之比的方法来过滤掉一些不规则的轮廓，保留更接近矩形的轮廓
-    min_area = 100  # 根据实际情况调整最小面积阈值
-    good_cnts = []
-    for cnt in cnts:
-        area = cv2.contourArea(cnt)
-        if area < min_area:
-            continue
-
-        peri = cv2.arcLength(cnt, True)
-        if peri == 0:
-            continue
-
-        # 稍微减小 epsilon 参数 (0.02 -> 0.015)，防止三角形顶点被过度简化
-        approx = cv2.approxPolyDP(cnt, 0.015 * peri, True)
-        
-        # 保持凸性检测
-        if not cv2.isContourConvex(approx):
-            continue
-
-        num_vertices = len(approx)
-        rect = cv2.minAreaRect(cnt)
-        (x, y), (w, h), angle = rect
-        ratio = w / h if h != 0 else 0
-        rect_area = w * h
-        extent = area / rect_area if rect_area != 0 else 0
-
-        # --- 开始分类筛选逻辑 ---
-        
-        # 1. 三角形判定 (通常拟合为 3 个点)
-        if num_vertices == 3:
-            # 三角形的占空比在 0.4 到 0.6 之间比较合理
-            if 0.4 < extent < 0.7 and 0.5 < ratio < 2.0:
-                good_cnts.append(cnt)
-                
-        # 2. 矩形/A4纸判定 (通常拟合为 4 个点)
-        elif num_vertices == 4:
-            # 矩形占空比很高，通常 > 0.7 (理想是 1.0)
-            if extent > 0.65 and 0.5 < ratio < 2.0:
-                good_cnts.append(cnt)
-                
-        # 3. 圆形或多边形判定 (通常拟合点数 > 5)
-        elif num_vertices > 4:
-            # 圆形的占空比约为 0.785，且长宽比非常接近 1
-            # 增加一个“圆度”校验 (4*pi*area / peri^2)，这是识别圆的最准方法
-            circularity = (4 * np.pi * area) / (peri ** 2)
-            if circularity > 0.7 and 0.8 < ratio < 1.2:
-                good_cnts.append(cnt)
-    
-    ft_cnts = filter_similar_contours(good_cnts)
-    
-    a4_out, border_in, target = get_final_nested_contours(ft_cnts)
-
-    num_cnt = 0
-    if a4_out is not None:
-        num_cnt += 1
-    if border_in is not None:
-        num_cnt += 1
-    if target is not None:
-            num_cnt += 1
-
-    print(f"轮廓数量：{num_cnt} (A4外框: {len(a4_out)}, 内沿: {len(border_in)}, 目标: {len(target)})")
-
-    # 5.绘图可视化显示所有轮廓
-    img_all = img.copy()
-    cv2.drawContours(img_all, [a4_out, border_in, target], -1, (0, 255, 0), 2)
-    cv2.namedWindow("All Contours", cv2.WINDOW_NORMAL)
-    cv2.imshow("All Contours", img_all)
-    #cv2.waitKey(-1)#调试时开启
-
-    return a4_out, border_in, target, gray
-def get_conTours_ex(image_path):
-    
-    """
-    input param:文件路径
-    output param:过滤后的轮廓列表,原图像的灰度图
-    """
-    # 1. 加载图片
-
-    img = cv2.imread(image_path)
-    if img is None:
-        print("错误：无法加载图片")
-        return None
-    print(f"图片读取成功！大小：{img.shape[0]} x {img.shape[1]}")
-
-    # 2. 预处理：灰度化 -> 高斯滤波 -> 边缘检测
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    """
-    gray[gray < 50] = 0
-    gray[gray >= 50] = 255#二值化，主要去除阴影
-    """
     """
     gray[gray < 50] = 0
     gray[gray >= 50] = 255#二值化，主要去除阴影
@@ -169,8 +58,6 @@ def get_conTours_ex(image_path):
         num_vertices = len(approx)
         rect = cv2.minAreaRect(cnt)
         (x, y), (w, h), angle = rect
-        rect = cv2.minAreaRect(cnt)
-        (x, y), (w, h), angle = rect
         ratio = w / h if h != 0 else 0
         rect_area = w * h
         extent = area / rect_area if rect_area != 0 else 0
@@ -199,17 +86,6 @@ def get_conTours_ex(image_path):
     
     ft_cnts = filter_similar_contours(good_cnts)
     
-    a4_out, border_in, target = get_challenge_contours(ft_cnts)
-
-    num_cnt = 0
-    if a4_out is not None:
-        num_cnt += 1
-    if border_in is not None:
-        num_cnt += 1
-    if target is not None:
-            num_cnt += 1
-
-    print(f"轮廓数量：{num_cnt} (A4外框: {len(a4_out)}, 内沿: {len(border_in)}, 目标: {len(target)})")
     a4_out, border_in, target = get_final_nested_contours(ft_cnts)
 
     num_cnt = 0
@@ -426,11 +302,6 @@ def get_final_nested_contours(cnts):
         target = final_three[2]
         return a4_out, border_in, target
     
-        a4_out = final_three[0]
-        border_in = final_three[1]
-        target = final_three[2]
-        return a4_out, border_in, target
-    
     print("未找到完整的三层嵌套结构，返回发现的所有层")
     return None # 如果不足三层，则返回发现的所有层
 
@@ -569,7 +440,6 @@ def caculate_circle_x(cnts):
 # 1. 计算像素直径
     (x, y), radius = cv2.minEnclosingCircle(cnts)#拟合最小外接圆
     D_pixel = radius * 2
-    
     
 
     # 2. 绘制识别结果用于预览确认
