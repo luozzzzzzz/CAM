@@ -64,8 +64,9 @@ def get_focal_length(image_path, real_distance, real_height=28.3):
 if __name__ == "__main__":
     # --- 用户设定参数 ---
     # 假设你把 A4 纸放在 D = 150cm 处拍了一张照
-    test_distance = 385
-    image_path = r"picture/3_26_1.png" # 替换为你的实拍图路径
+    #cm
+    test_distance = 200
+    image_path = r"picture/4_2_5.jpg" # 替换为你的实拍图路径
     
     f_val = get_focal_length(image_path, test_distance)
     

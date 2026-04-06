@@ -2,151 +2,191 @@ import cv2
 import numpy as np
 import tools 
 
-def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,real_side_limit=(10, 16)):
-    """
-    测量图像中正方形的距离 D 和边长 x
-    :param image_path: 图片路径
-    :param f_pixel: 相机的像素焦距 (通过预先测量获得)
-    :param real_side_limit: 题目要求的边长范围 (cm)
-    :return: D (距离), x (边长)
-    """
-    cnts,img_gray = tools.get_conTours(image_path)
-
-    if len(cnts) > 0:
-        #一、根据外轮廓计算距离 D
-        # 假设最大的轮廓就是 A4 纸
-        peri = cv2.arcLength(cnts[0], True)
-        approx = cv2.approxPolyDP(cnts[0], 0.02 * peri, True)
-
-        if len(approx) == 4:
-            #print(f"外轮廓近似多边形顶点数：{len(approx)}")
-
-            refined_corners = tools.refine_approx(approx, img_gray)
-
-            w_pixel_ex,h_pixel_ex,text,pos = tools.caculate_square_x(refined_corners)
-
-            
-            # [text_w,text_h] = text
-            # [pos_w,pos_h] = pos
-
-            #print(f"精确化后的外边框像素宽度 w_pixel_ex: {w_pixel_ex:.2f},精确化后的外边框像素高度 h_pixel_ex: {h_pixel_ex:.2f}")
-
-            # 2. 根据公式计算
- 
-            distance_1 = h_outcontour * f_pixel / h_pixel_ex
-            distance_2 = w_outcontour * f_pixel / w_pixel_ex
-            distance = (distance_1 + distance_2) / 2
-            #print(f"距离 D: {distance:.2f} cm")
-
-        # 二、计算边长 x
-
-        peri = cv2.arcLength(cnts[-1], True)
-        approx = cv2.approxPolyDP(cnts[-1], 0.02 * peri, True)#第二个参数为拟合的多边形与原始轮廓的最大距离，越小越精确
-
-        if len(approx) == 4:
-            print(f"---目标为正方形!---，顶点数：{len(approx)}")
-
-            refined_corners = tools.refine_approx(approx, img_gray)
-
-            w_pixel_obj,h_pixel_obj,text,pos = tools.caculate_square_x(refined_corners)
-            
-            [text_w,text_h] = text
-            [pos_w,pos_h] = pos
-            #print(f"精确化后的目标像素宽度 w_pixel_obj: {w_pixel_obj:.2f},精确化后的目标像素高度 h_pixel_obj: {h_pixel_obj:.2f}")
-            
-            # 2. 计算实际边长
-            x_1 = h_pixel_obj * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
-            x_2 = w_pixel_obj * w_outcontour / w_pixel_ex  # 这里需要根据实际情况调整公式
-            x = (x_1 + x_2) / 2
-
-            #print(f"精确化后的目标实际边长 x: {x:.2f}")
-
-
-            # 3. 绘制识别结果用于预览确认
-            img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)  # 转回彩色图以便绘制彩色轮廓
-            img_all = img.copy()      
-
-            cv2.drawContours(img_all, [approx], -1, (0, 255, 0), 2)
-            
-            # 绘制文字
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img_all, text_w, pos_w, font, 0.6, (0, 255, 0), 2)
-            cv2.putText(img_all, text_h, pos_h, font, 0.6, (0, 255, 0), 2)
-            cv2.imshow("approx_rectangle", img_all)#显示拟合的矩形
-            cv2.waitKey(0)
-            # cv2.imwrite(r"picture/calibration.jpg", img)
-
-            return distance, x
-        
-        elif len(approx) == 3:
-            print(f"---目标为三角形！，顶点数：{len(approx)}---")
-
-            refined_corners = tools.refine_approx(approx, img_gray)
-
-            x_pixel,text,pos = tools.caculate_triangle_x(refined_corners)
-
-            #print(f"精确化后的目标三角形像素边长 x_pixel: {x_pixel:.2f}")
-
-            # 2. 计算实际边长
-            
-            x = x_pixel * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
-
-            #print(f"精确化后的目标实际边长 x: {x:.2f}")
-
-
-            # 3. 绘制识别结果用于预览确认
-            img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)  # 转回彩色图以便绘制彩色轮廓
-            img_all = img.copy()      
-
-            cv2.drawContours(img_all, [approx], -1, (0, 255, 0), 2)
-            
-           
-            # 绘制文字
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img_all, text, pos, font, 0.6, (0, 255, 0), 2)
-            cv2.imshow("approx_tritangle", img_all)#显示拟合的三角形
-            cv2.waitKey(0)
-            # cv2.imwrite(r"picture/calibration.jpg", img)
-
-            return distance, x
-        elif len(approx) > 4:
-
-            print(f"---目标为圆形！---")
-            (x, y), radius = cv2.minEnclosingCircle(cnts[-1])#拟合最小外接圆
-            D_pixel = radius * 2
-            #print(f"拟合圆的像素直径 D_pixel: {D_pixel:.2f}")
-            
+def get_conTours(image_path):
     
-            # 2. 计算实际直径
-            Dia = D_pixel * h_outcontour / h_pixel_ex
-            #print(f"目标圆的实际直径 Dia: {Dia:.2f} cm")
+    """
+    input param:文件路径
+    output param:过滤后的轮廓列表,原图像的灰度图
+    """
+    # 1. 加载图片
 
-            # 3. 绘制识别结果用于预览确认
-            img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
-            img_all = img.copy()     
-            
-            text = f"Dia: {Dia:.2f}cm"
-            # 获取文字大小以实现居中
-            (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-
-            # 计算位置：圆心坐标 - (文字宽度一半, 向上偏移)
-            pos = (int(x - tw / 2), int(y - th / 2 - 10))
-
-        
-            # 画圆和标注
-            cv2.circle(img_all, pos, int(radius), (0, 255, 0), 2) # 画出识别到的圆
-            cv2.putText(img_all, text, pos, cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            cv2.imshow("approx_circle", img_all)#显示拟合的圆形
-            cv2.waitKey(0)
-
-            return distance, Dia
-
-
-    else:
-        print("未识别到目标轮廓")
+    img = cv2.imread(image_path)
+    if img is None:
+        print("错误：无法加载图片")
         return None
+    print(f"图片读取成功！大小：{img.shape[0]} x {img.shape[1]}")
+
+    # 2. 预处理：灰度化 -> 高斯滤波 -> 边缘检测
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    edged = cv2.Canny(blurred, 100, 150)
+    
+    #100：低阈值（threshold1），用于检测弱边缘。梯度值低于此阈值的像素会被丢弃。
+    #150：高阈值（threshold2），用于检测强边缘。梯度值高于此阈值的像素被认为是确定的边缘。
+
+    cv2.imshow("Edged", edged)
+    
+    # 3. 寻找轮廓并排序（取面积最大的，即 A4 纸外框）
+    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    
+    #print(f"原始轮廓数量：{len(cnts)}")
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
+
+    # 4.用面积与周长之比的方法来过滤掉一些不规则的轮廓，保留更接近矩形的轮廓
+    min_area = 100  # 根据实际情况调整最小面积阈值
+    good_cnts = []
+    for cnt in cnts:
+        area = cv2.contourArea(cnt)
+        if area < min_area:
+            continue
+
+        peri = cv2.arcLength(cnt, True)
+        if peri == 0:
+            continue
+
+        # 稍微减小 epsilon 参数 (0.02 -> 0.015)，防止三角形顶点被过度简化
+        approx = cv2.approxPolyDP(cnt, 0.015 * peri, True)
+        
+        # 保持凸性检测
+        if not cv2.isContourConvex(approx):
+            continue
+
+        num_vertices = len(approx)
+        x, y, w, h = cv2.boundingRect(approx)
+        ratio = w / h if h != 0 else 0
+        rect_area = w * h
+        extent = area / rect_area if rect_area != 0 else 0
+
+        # --- 开始分类筛选逻辑 ---
+        
+        # 1. 三角形判定 (通常拟合为 3 个点)
+        if num_vertices == 3:
+            # 三角形的占空比在 0.4 到 0.6 之间比较合理
+            if 0.4 < extent < 0.7 and 0.5 < ratio < 2.0:
+                good_cnts.append(cnt)
+                
+        # 2. 矩形/A4纸判定 (通常拟合为 4 个点)
+        elif num_vertices == 4:
+            # 矩形占空比很高，通常 > 0.7 (理想是 1.0)
+            if extent > 0.65 and 0.5 < ratio < 2.0:
+                good_cnts.append(cnt)
+                
+        # 3. 圆形或多边形判定 (通常拟合点数 > 5)
+        elif num_vertices > 4:
+            # 圆形的占空比约为 0.785，且长宽比非常接近 1
+            # 增加一个“圆度”校验 (4*pi*area / peri^2)，这是识别圆的最准方法
+            circularity = (4 * np.pi * area) / (peri ** 2)
+            if circularity > 0.7 and 0.8 < ratio < 1.2:
+                good_cnts.append(cnt)
+    
+    ft_cnts = filter_similar_contours(good_cnts)
+    
+    final_cnts = get_final_nested_contours(ft_cnts)
+    print(f"轮廓数量：{len(final_cnts)}")
+
+    # 5.绘图可视化显示所有轮廓
+    img_all = img.copy()
+    cv2.drawContours(img_all, final_cnts, -1, (0, 255, 0), 2)
+    cv2.namedWindow("All Contours", cv2.WINDOW_NORMAL)
+    cv2.imshow("All Contours", img_all)
+    cv2.waitKey(-1)#调试时开启
+
+    return final_cnts,gray
+
+
+
+def get_final_nested_contours(cnts):
+    """
+    寻找最深的嵌套链，并保留面积最小的三个轮廓
+    """
+    # 1. 按面积从大到小排序
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
+    
+    best_chain = []
+
+    # 2. 遍历每一个轮廓作为起始点（父容器）
+    for i in range(len(cnts)):
+        current_chain = [cnts[i]]
+        last_parent = cnts[i]
+        
+        # 3. 寻找该轮廓内部的所有嵌套子轮廓
+        for j in range(i + 1, len(cnts)):
+            child_candidate = cnts[j]
+            
+            # 计算质心
+            M = cv2.moments(child_candidate)
+            if M["m00"] == 0: continue
+            centroid = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+            
+            # 判断质心是否在当前父轮廓内部
+            if cv2.pointPolygonTest(last_parent, centroid, False) >= 0:
+                current_chain.append(child_candidate)
+                last_parent = child_candidate # 更新父容器，寻找下一层嵌套
+        
+        # 记录发现的最长嵌套链
+        if len(current_chain) > len(best_chain):
+            best_chain = current_chain
+
+    # 4. 如果嵌套层数 >= 3，保留面积最小的三个（即列表的最后三个）
+    if len(best_chain) >= 3:
+        # 面积从大到小排列，-3: 表示取最后三个
+        final_three = best_chain[-3:] 
+        # 此时得到的顺序是：[倒数第三大(A4外), 倒数第二大(内沿), 最小(中心图形)]
+        return final_three
+    print("未找到完整的三层嵌套结构，返回发现的所有层")
+    return best_chain # 如果不足三层，则返回发现的所有层
+
+def filter_similar_contours(cnts, dist_thresh=10, area_ratio_thresh=0.9, shape_thresh=0.1):
+    if not cnts:
+        return []
+
+    # 1. 按面积从大到小排序，确保优先保留“外侧”或更完整的轮廓
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
+    unique_cnts = []
+    centers = []
+    areas = []
+
+    for cnt in cnts:
+        # 计算当前轮廓的特征
+        M = cv2.moments(cnt)
+        if M["m00"] == 0: continue
+        
+        curr_cx = int(M["m10"] / M["m00"])
+        curr_cy = int(M["m01"] / M["m00"])
+        curr_area = M["m00"]
+        
+        is_duplicate = False
+        
+        # 2. 与已经保留的唯一轮廓逐一比对
+        for i, (prev_cx, prev_cy) in enumerate(centers):
+            # a. 计算重心欧氏距离
+            dist = np.sqrt((curr_cx - prev_cx)**2 + (curr_cy - prev_cy)**2)
+            
+            # b. 计算面积比例
+            area_ratio = curr_area / areas[i] # 因为已排过序，所以必定 <= 1
+            
+            # c. 计算形状相似度 (Hu矩)
+            # cv2.CONTOURS_MATCH_I1 是最常用的匹配指标，越小越像
+            shape_similarity = cv2.matchShapes(cnt, unique_cnts[i], cv2.CONTOURS_MATCH_I1, 0.0)
+
+            # --- 判定准则 ---
+            # 如果重心离得近，且面积、形状都高度相似，则判定为重复
+            if dist < dist_thresh and area_ratio > area_ratio_thresh and shape_similarity < shape_thresh:
+                is_duplicate = True
+                break
+        
+        if not is_duplicate:
+            unique_cnts.append(cnt)
+            centers.append((curr_cx, curr_cy))
+            areas.append(curr_area)
+            
+    return unique_cnts
+
+
 
 if __name__ == "__main__":
-    image_path = r"picture/test_canny.jpg"
-    D,x =measure_target(image_path, f_pixel = 700, h_outcontour = 28.3,w_outcontour=21.0, real_side_limit=(10, 16))
-    print(f"距离 D: {D:.2f} cm, 边长/直径 x: {x:.2f} cm")
+    image_path = r"picture/4_2_5.jpg"
+    get_conTours(image_path)
+  

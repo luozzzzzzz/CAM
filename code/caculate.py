@@ -139,6 +139,6 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
         return None
 
 if __name__ == "__main__":
-    image_path = r"picture/test_canny.jpg"
-    D,x =measure_target(image_path, f_pixel = 700, h_outcontour = 28.3,w_outcontour=21.0, real_side_limit=(10, 16))
+    image_path = r"picture/4_2_5.jpg"
+    D,x =measure_target(image_path, f_pixel = 2581.87, h_outcontour = 28.3,w_outcontour=21.0, real_side_limit=(10, 16))
     print(f"距离 D: {D:.2f} cm, 边长/直径 x: {x:.2f} cm")

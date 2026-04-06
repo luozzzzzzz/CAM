@@ -3,6 +3,11 @@
 import cv2 
 import numpy as np
 
+try:
+    from skimage.feature import phase_congruency
+except ImportError:
+    phase_congruency = None
+
 def get_conTours(image_path):
     
     """
@@ -21,7 +26,13 @@ def get_conTours(image_path):
 
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
-    edged = cv2.Canny(blurred, 100, 150)
+    if phase_congruency is not None:
+        pc = phase_congruency(blurred.astype(np.float32))
+        pc = np.nan_to_num(pc)
+        pc = (pc - pc.min()) / (pc.max() - pc.min() + 1e-8)
+        edged = (pc > 0.2).astype(np.uint8) * 255
+    else:
+        edged = cv2.Canny(blurred, 100, 150)
     #100：低阈值（threshold1），用于检测弱边缘。梯度值低于此阈值的像素会被丢弃。
     #150：高阈值（threshold2），用于检测强边缘。梯度值高于此值的像素被认为是确定的边缘。
 
