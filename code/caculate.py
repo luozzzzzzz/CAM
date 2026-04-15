@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import tools 
 
-def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,real_side_limit=(10, 16)):
+def measure_target(image_path, f_pixel, h_outcontour = 29.7,w_outcontour=21.0):
     """
     测量图像中正方形的距离 D 和边长 x
     :param image_path: 图片路径
@@ -10,13 +10,13 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
     :param real_side_limit: 题目要求的边长范围 (cm)
     :return: D (距离), x (边长)
     """
-    cnts,img_gray = tools.get_conTours(image_path)
-
-    if len(cnts) > 0:
+    a4_out,border_in,target,img_gray = tools.get_conTours(image_path)
+    
+    if a4_out is not None:
         #一、根据外轮廓计算距离 D
         # 假设最大的轮廓就是 A4 纸
-        peri = cv2.arcLength(cnts[0], True)
-        approx = cv2.approxPolyDP(cnts[0], 0.02 * peri, True)
+        peri = cv2.arcLength(a4_out, True)
+        approx = cv2.approxPolyDP(a4_out, 0.02 * peri, True)
 
         if len(approx) == 4:
             #print(f"外轮廓近似多边形顶点数：{len(approx)}")
@@ -40,8 +40,8 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
 
         # 二、计算边长 x
 
-        peri = cv2.arcLength(cnts[-1], True)
-        approx = cv2.approxPolyDP(cnts[-1], 0.02 * peri, True)#第二个参数为拟合的多边形与原始轮廓的最大距离，越小越精确
+        peri = cv2.arcLength(target, True)
+        approx = cv2.approxPolyDP(target, 0.02 * peri, True)#第二个参数为拟合的多边形与原始轮廓的最大距离，越小越精确
 
         if len(approx) == 4:
             print(f"---目标为正方形!---，顶点数：{len(approx)}")
@@ -59,7 +59,7 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
             x_2 = w_pixel_obj * w_outcontour / w_pixel_ex  # 这里需要根据实际情况调整公式
             x = (x_1 + x_2) / 2
 
-            #print(f"精确化后的目标实际边长 x: {x:.2f}")
+            print(f"正方形目标实际边长 x: {x:.2f}")
 
 
             # 3. 绘制识别结果用于预览确认
@@ -91,7 +91,7 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
             
             x = x_pixel * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
 
-            #print(f"精确化后的目标实际边长 x: {x:.2f}")
+            print(f"三角形目标实际边长 x: {x:.2f}")
 
 
             # 3. 绘制识别结果用于预览确认
@@ -112,8 +112,9 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
         elif len(approx) > 4:
 
             print(f"---目标为圆形！---")
-            D_pixel, radius, pos_circle,pos_text = tools.caculate_circle_x(cnts[-1])
-            print(f"拟合圆的像素直径 D_pixel: {D_pixel:.2f}")
+            D_pixel, radius, pos_circle,pos_text = tools.caculate_circle_x(target)
+
+            #print(f"拟合圆的像素直径 D_pixel: {D_pixel:.2f}")
 
             # 2. 计算实际直径
             Dia = D_pixel * h_outcontour / h_pixel_ex
@@ -139,6 +140,6 @@ def measure_target(image_path, f_pixel, h_outcontour = 28.3,w_outcontour=21.0,re
         return None
 
 if __name__ == "__main__":
-    image_path = r"picture/4_2_5.jpg"
-    D,x =measure_target(image_path, f_pixel = 2581.87, h_outcontour = 28.3,w_outcontour=21.0, real_side_limit=(10, 16))
+    image_path = r"picture/4_2_3.jpg"
+    D,x =measure_target(image_path, f_pixel = 2581.87)
     print(f"距离 D: {D:.2f} cm, 边长/直径 x: {x:.2f} cm")
