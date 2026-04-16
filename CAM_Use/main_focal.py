@@ -46,7 +46,7 @@ def get_focal_length(image_path, real_distance, real_height=28.3):
             cv2.drawContours(img_all, [approx], -1, (0, 255, 0), 2)
            
 
-
+            """
             # 绘制文字
             font = cv2.FONT_HERSHEY_SIMPLEX
             cv2.putText(img_all, text_w, pos_w, font, 0.6, (0, 255, 0), 2)
@@ -54,12 +54,12 @@ def get_focal_length(image_path, real_distance, real_height=28.3):
             cv2.imshow("approx_rectangle", img_all)#显示拟合的矩形
             cv2.waitKey(0)
             # cv2.imwrite(r"picture/calibration.jpg", img)
-
+            """
             return f_pixel
             
     else:
         print("未识别到目标轮廓")
-        return None
+        return -1
 
 
 
@@ -77,7 +77,7 @@ while not app.need_exit():
     #print("time: ", time.ticks_ms() - t)
 
     # 用cv2处理图像
-    test_distance = 385
+    test_distance = 147.2
     
     f_val = get_focal_length(img, test_distance)
     

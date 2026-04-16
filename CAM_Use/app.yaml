@@ -1,0 +1,15 @@
+files:
+  - 未尽之事.md
+  - getimage.py
+  - main_focal.py
+  - main.py
+  - send.py
+  - test.py
+  - tools.py
+  - tryCamera.py
+id: levi1
+name: levi
+version: 1.0.2
+author: leviwicr
+icon: app.png
+desc: comunictate success
