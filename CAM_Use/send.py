@@ -26,9 +26,9 @@ D=0
 x=0
 classs=1
 
-bytes_content = b'\xAA'
-bytes_content += pack("<f", D)    # 小端编码
-bytes_content += pack("<f", x)    # 小端编码
+bytes_content = b'\xAA\xBB\xCC\xDD'
+bytes_content += pack("<i", D)    # 小端编码
+bytes_content += pack("<i", x)    # 小端编码
 bytes_content += pack("<i", classs)    # 小端编码
 bytes_content += b'\xFF'
 print(bytes_content, type(bytes_content))
