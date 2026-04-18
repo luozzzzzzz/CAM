@@ -46,6 +46,11 @@ def extract_square(img,cnt, output_size=56):
     # 提取顶点并做透视矫正
     pts = approx.reshape(4, 2)
     warped_square = four_point_transform(img, pts, output_size)
+    #二值化：
+    _, warped_square = cv2.threshold(
+            warped_square, 150, 255, 
+            cv2.THRESH_BINARY
+        )
     #将square转化为maix格式：
     sq=img.cv2image(warped_square,bgr=False,copy=False)  #注意此处的bgr到底是要False还是True
 

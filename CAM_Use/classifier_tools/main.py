@@ -1,4 +1,4 @@
-
+"""官方模型使用示例"""
 from maix import camera, display, image, nn, app, comm
 import struct, os
 
