@@ -102,8 +102,8 @@ def get_conTours_ex(image):
     # 2. 预处理：灰度化 -> 高斯滤波 -> 边缘检测
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    gray[gray < 50] = 0
-    gray[gray >= 50] = 255#二值化，主要去除阴影
+    gray[gray < 80] = 0
+    gray[gray >= 80] = 255#二值化，主要去除阴影
     
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
@@ -153,7 +153,7 @@ def get_conTours_ex(image):
     
     ft_cnts = filter_similar_contours(good_cnts)
     
-    a4_out, border_in, target = get_cplx_conTours(ft_cnts)
+    a4_out, border_in, target = get_cplx_conTours(ft_cnts,gray)
 
     num_cnt = 0
     if a4_out is not None:
@@ -164,15 +164,17 @@ def get_conTours_ex(image):
         num_cnt += 1
     else:
         print(2)
-    if target is not None:
+    if len(target)>0:
         if isinstance(target[0], np.ndarray) and target[0].ndim > 1:
             num_cnt += len(target) 
         else:
             num_cnt += 1
     else:
         print(3)
-    
-    print(f"轮廓数量：{num_cnt} (A4外框: {len(a4_out)}, 内沿: {len(border_in)}, 目标: {len(target)})")
+    if a4_out is not None and border_in is not None and len(target)>0:
+        print(f"轮廓数量：{num_cnt} (A4外框: {len(a4_out)}, 内沿: {len(border_in)}, 目标: {len(target)})\n")
+    else:
+        print("没有检测到三层轮廓")
 
     # 5.绘图可视化显示所有轮廓
     #img_all = img.copy()
@@ -181,7 +183,7 @@ def get_conTours_ex(image):
     #cv2.imshow("All Contours", img_all)
     #cv2.waitKey(-1)#调试时开启
 
-    return a4_out, border_in, target, gray
+    return a4_out, border_in, target, gray,edged
 
 def get_cplx_conTours(ft_cnts,gray_img):
     """
@@ -203,7 +205,7 @@ def get_cplx_conTours(ft_cnts,gray_img):
             if M["m00"] == 0: continue
             centroid = (int(M["m10"]/M["m00"]), int(M["m01"]/M["m00"]))
             
-            if cv2.pointPolygonTest(c_parent, centroid, False) >= 0:
+            if cv2.pointPolygonTest(c_parent, centroid, False) >= 0 and cv2.contourArea(c_child)/cv2.contourArea(c_parent)>0.7 and cv2.contourArea(c_child)/cv2.contourArea(c_parent)<0.9:
                 a4_out, border_in = c_parent, c_child
                 break
         if a4_out is not None: break

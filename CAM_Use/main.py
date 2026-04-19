@@ -139,10 +139,14 @@ def measure_target_ex(image, f_pixel, h_outcontour = 29.7,w_outcontour=21.0):
     :param real_side_limit: 题目要求的边长范围 (cm)
     :return: D (距离), x (边长)
     """
-    distance = -1,x =-1
-    a4_out,border_in,target,img_gray = tools.get_conTours_ex(image)
-    
-    if a4_out is not None and target is not None:
+    distance = -1
+    x =-1
+    a4_out,border_in,target,img_gray,edged = tools.get_conTours_ex(image)
+    if len(target)>0:
+        print(f"检测到{len(target)}个目标正方形")
+    else:
+        print("没有检测到目标正方形")
+    if a4_out is not None and len(target)>0:
         #一、根据外轮廓计算距离 D
         # 假设最大的轮廓就是 A4 纸
         peri = cv2.arcLength(a4_out, True)
@@ -197,14 +201,14 @@ def measure_target_ex(image, f_pixel, h_outcontour = 29.7,w_outcontour=21.0):
                 # cv2.waitKey(0)
                 
 
-                return distance, x
+                return distance, x,edged
             else:
-                return distance,x
+                return distance,x,edged
         else:
-            return distance,x
+            return distance,x,edged
     else:
         #print("未识别到目标轮廓")
-        return distance,x
+        return distance,x,edged
 def measure_target_number(classifier,image, f_pixel, h_outcontour = 29.7,w_outcontour=21.0):
     """
     测量 D 和图像中正方形的边长x
@@ -214,13 +218,12 @@ def measure_target_number(classifier,image, f_pixel, h_outcontour = 29.7,w_outco
     :return: D (距离), 以编号为键、正方形的x (边长)为值的集合
     """
     distance=-1
-    x=-1
     x_labels={}
 
     img=image
     a4_out,a4_in,cnts,img_gray = tools.get_conTours_ex(img)
     
-    if len(cnts) > 0:
+    if a4_out is not None and len(cnts) > 0:
         #一、根据外轮廓计算距离 D
 
         # 假设最大的轮廓就是 A4 纸
@@ -240,31 +243,35 @@ def measure_target_number(classifier,image, f_pixel, h_outcontour = 29.7,w_outco
             distance_2 = w_outcontour * f_pixel / w_pixel_ex
             distance = (distance_1 + distance_2) / 2
             #print(f"距离 D: {distance:.2f} cm")
+
+
+             # 二、计算边长 四个正方形的x并识别编号
+        
+            for cnt in cnts:
+                #计算各个内部正方形的边长：
+                peri = cv2.arcLength(cnt, True)
+                approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)#第二个参数为拟合的多边形与原始轮廓的最大距离，越小越精确
+                refined_corners = tools.refine_approx(approx, img_gray)
+                w_pixel_obj,h_pixel_obj,_,_ = tools.caculate_square_x(refined_corners)
+                
+                x_1 = h_pixel_obj * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
+                x_2 = w_pixel_obj * w_outcontour / w_pixel_ex  # 这里需要根据实际情况调整公式
+                x = (x_1 + x_2) / 2
+
+                #识别内部各个正方形的编号：
+                square=tools2.extract_square(img,cnt)
+                res = classifier.classify(square)
+                max_idx, max_prob = res[0]
+
+                x_labels[classifier.labels[max_idx]]=x
         else:
             #print("未识别到目标轮廓:A4")
-            return distance,x
+            x_labels=None
+            return distance,x_labels
 
-        # 二、计算边长 四个正方形的x并识别编号
-        
-        for cnt in cnts:
-            #计算各个内部正方形的边长：
-            peri = cv2.arcLength(cnt, True)
-            approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)#第二个参数为拟合的多边形与原始轮廓的最大距离，越小越精确
-            refined_corners = tools.refine_approx(approx, img_gray)
-            w_pixel_obj,h_pixel_obj,_,_ = tools.caculate_square_x(refined_corners)
-            
-            x_1 = h_pixel_obj * h_outcontour / h_pixel_ex  # 这里需要根据实际情况调整公式
-            x_2 = w_pixel_obj * w_outcontour / w_pixel_ex  # 这里需要根据实际情况调整公式
-            x = (x_1 + x_2) / 2
-
-            #识别内部各个正方形的编号：
-            square=tools2.extract_square(img,cnt)
-            res = classifier.classify(square)
-            max_idx, max_prob = res[0]
-
-            x_labels[classifier.labels[max_idx]]=x
     else:
         print("没有检测到任何边框")
+        x_labels=None
     return distance,x_labels
 
 # 用于在图像中绘制退出按键
@@ -292,7 +299,7 @@ def answer(serial,img_show):
         #t = time.ticks_ms()
         img = image.image2cv(img_show, ensure_bgr=False, copy=False)
         # 用opencv处理图像
-        D_raw,x_raw,classes =measure_target(img, f_pixel = 2705.25, h_outcontour = 28.3,w_outcontour=20.1, real_side_limit=(10, 16))
+        D_raw,x_raw,classes =measure_target(img, f_pixel = 2705.25, h_outcontour = 28.3,w_outcontour=20.1)
         D_set.append(D_raw)
         x_set.append(x_raw)
         #print(f"距离 D: {D:.2f} cm, 边长/直径 x: {x:.2f} cm")
@@ -318,17 +325,23 @@ def answer(serial,img_show):
     serial.write_str(s)
 
 def answer_number(serial,img_show,classifier,number):
+    x=-1
     img = image.image2cv(img_show, ensure_bgr=False, copy=True)
-    D,x_labels=measure_target_number(classifier,img,f_pixel = 2705.25, h_outcontour = 28.3,w_outcontour=20.1, real_side_limit=(10, 16))
-    x=x_labels[number]
+    D,x_labels=measure_target_number(classifier,img,f_pixel = 2705.25)
+    if x_labels is not None:
+        count=len(x_labels)
+        print(f"检测到{count}个编号正方形")
+        if number in x_labels:
+            x=x_labels[number]
     s=f"{D:.3f},{x:.3f}\r\n"
     serial.write_str(s)
 
 def answer_mini(serial,img_show):
     img = image.image2cv(img_show, ensure_bgr=False, copy=False)
-    D,x=measure_target_ex(img,f_pixel = 2705.25, h_outcontour = 28.3,w_outcontour=20.1, real_side_limit=(10, 16))
+    D,x,edged=measure_target_ex(img,f_pixel = 2705.25)
     s=f"{D:.3f},{x:.3f}\r\n"
     serial.write_str(s)
+    return edged
 
 def main(disp):
     cam = camera.Camera(960, 720)  
@@ -344,11 +357,13 @@ def main(disp):
 
     serial_dev = uart.UART("/dev/ttyS0", 115200)
 
+    #edged=np.zeros((960, 720, 3), np.uint8)
+    edged=None
     while not app.need_exit():
         img_show = cam.read()
         #img = img.lens_corr(strength=1.7)  #矫正图像畸变
-
-        rx_data=serial_dev.read().decode()  #以ASCII编码恢复字符串
+        
+        rx_data=serial_dev.read().decode("ascii")  #以ASCII编码恢复字符串
         if rx_data:
             serial_dev.write_str("hello\r\n")
         if rx_data=="tri":
@@ -357,23 +372,38 @@ def main(disp):
             answer(serial_dev,img_show)
         elif rx_data=="squ":
             answer(serial_dev,img_show)
-        elif rx_data[0:5]=="detect":
+        elif rx_data[0:6]=="detect":
+            s=f"yes,come in\r\n"
+            serial_dev.write_str(s)
             # 根据要检测的编号返回距离和其中特定编号的正方形
             number=ord(rx_data[6])-ord('0')
             answer_number(serial_dev,img_show,classifier,number)
         elif rx_data=="mini":
-            answer_mini(serial_dev,img_show)
+            edged=answer_mini(serial_dev,img_show)
 
         # show by maix.display
         #img_show = image.cv2image(img_cv2, bgr=True, copy=False)
         # 现在直接展示原始图像，后面考虑绘制框选图像
-        img_show.draw_image(0, 0, img_back)
-        disp.show(img_show)
+        
+        #print(type(edged))
+        if edged:
+            edged_show = image.cv2image(edged, bgr=False, copy=True)
+            if not (edged_show.format() == image.Format.FMT_RGB888):
+                #print("format change!!!!!!!!!")
+                edged_show=edged_show.to_format(image.Format.FMT_RGB888)
+            #print(type(edged_show))
+            #print(edged_show.format())
+            edged_show.draw_image(0, 0, img_back)
+            disp.show(edged_show)
+        else:
+            img_show.draw_image(0, 0, img_back)
+            disp.show(img_show)
         x, y, preesed = ts.read()
         if is_in_button(x, y, back_rect_disp):
             app.set_exit_flag(True)
 
 disp = display.Display()  
+
 try:
     main(disp)
 except Exception:
@@ -385,3 +415,4 @@ except Exception:
     while not app.need_exit():
         time.sleep_ms(100)
 
+#main(disp)
