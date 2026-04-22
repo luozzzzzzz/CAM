@@ -370,9 +370,9 @@ def caculate_square_x(cnts):
             
             # 在透视投影中，对边不一定相等
             # 计算平均值，或者根据竞赛需求取最大值
-            #w_pixel = (width_top + width_bottom) / 2
+            w_pixel = (width_top + width_bottom) / 2
             h_pixel = (height_left + height_right) / 2
-            w_pixel = h_pixel/1.4142 #选择更相信高，利用A4纸先验
+            #w_pixel = h_pixel/1.4142 #选择更相信高，利用A4纸先验
             #  格式化文字 (保留两位小数)
             text_w = f"W: {w_pixel:.2f}px"
             text_h = f"H: {h_pixel:.2f}px"

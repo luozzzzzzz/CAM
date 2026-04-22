@@ -27,8 +27,8 @@ def get_conTours(image_path):
     
     #100：低阈值（threshold1），用于检测弱边缘。梯度值低于此阈值的像素会被丢弃。
     #150：高阈值（threshold2），用于检测强边缘。梯度值高于此阈值的像素被认为是确定的边缘。
-
-    #cv2.imshow("Edged", edged)
+    # cv2.namedWindow("Edged", cv2.WINDOW_NORMAL)
+    # cv2.imshow("Edged", edged)
     
     # 3. 寻找轮廓并排序（取面积最大的，即 A4 纸外框）
     cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
@@ -88,6 +88,11 @@ def get_conTours(image_path):
     
     a4_out, border_in, target = get_final_nested_contours(ft_cnts)
 
+    img_1 = img.copy()
+    cv2.drawContours(img_1, [a4_out, border_in, target], -1, (0, 255, 0), 2)
+    cv2.namedWindow("Final Nested Contours", cv2.WINDOW_NORMAL)
+    cv2.imshow("Final Nested Contours", img_1)  # 调试时开启
+
     num_cnt = 0
     if a4_out is not None:
         num_cnt += 1
@@ -121,8 +126,8 @@ def get_conTours_ex(image_path):
     # 2. 预处理：灰度化 -> 高斯滤波 -> 边缘检测
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    gray[gray < 80] = 0
-    gray[gray >= 80] = 255#二值化，主要去除阴影
+    gray[gray < 50] = 0
+    gray[gray >= 50] = 255#二值化，主要去除阴影
 
     #调试开启
     # cv2.namedWindow("Gray", cv2.WINDOW_NORMAL)
@@ -134,9 +139,8 @@ def get_conTours_ex(image_path):
     
     #100：低阈值（threshold1），用于检测弱边缘。梯度值低于此阈值的像素会被丢弃。
     #150：高阈值（threshold2），用于检测强边缘。梯度值高于此阈值的像素被认为是确定的边缘。
-
-    #cv2.imshow("Edged", edged)
-    #cv2.imshow("Edged", edged)
+    # cv2.namedWindow("Edged", cv2.WINDOW_NORMAL)
+    # cv2.imshow("Edged", edged) 
     
     # 3. 寻找轮廓并排序（取面积最大的，即 A4 纸外框）
     cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
@@ -158,7 +162,8 @@ def get_conTours_ex(image_path):
         peri = cv2.arcLength(cnt, True)
         if peri == 0:
             continue
-
+        
+        
         # 稍微减小 epsilon 参数 (0.02 -> 0.015)，防止三角形顶点被过度简化
         approx = cv2.approxPolyDP(cnt, 0.015 * peri, True)
         
@@ -167,8 +172,6 @@ def get_conTours_ex(image_path):
         #     continue
 
         num_vertices = len(approx)
-        rect = cv2.minAreaRect(cnt)
-        (x, y), (w, h), angle = rect
         rect = cv2.minAreaRect(cnt)
         (x, y), (w, h), angle = rect
         ratio = w / h if h != 0 else 0
@@ -181,17 +184,11 @@ def get_conTours_ex(image_path):
             # 矩形占空比很高，通常 > 0.7 (理想是 1.0)
             if extent > 0.65 and 0.5 < ratio < 2.0:
                 good_cnts.append(cnt)
+        elif num_vertices > 4:
+            good_cnts.append(cnt)
                 
-        
+    #print(f"过滤前轮廓数量：{len(good_cnts)}")    
     
-    ft_cnts = filter_similar_contours(good_cnts)
-    
-    a4_out, border_in, target = get_challenge_contours(ft_cnts)
-        # # 保持凸性检测
-        # if not cv2.isContourConvex(approx):
-        #     continue
-
-        good_cnts.append(cnt)
 
     ft_cnts =filter_similar_contours(good_cnts)
     print(f"过滤后轮廓数量：{len(ft_cnts)}")
@@ -202,6 +199,7 @@ def get_conTours_ex(image_path):
 
     # cv2.drawContours(img_filtered, ft_cnts, -1, (0, 255, 0), 2)
     # cv2.imshow("Filtered Contours", img_filtered)
+    # cv2.waitKey(0)
 
     a4_out, border_in, target = get_cplx_conTours(ft_cnts,gray.copy())
 
@@ -210,13 +208,13 @@ def get_conTours_ex(image_path):
         num_cnt += 1
     if border_in is not None:
         num_cnt += 1
-    if target is not None and len(target) > 0:
+    if   len(target) > 0:
         if isinstance(target[0], np.ndarray) and target[0].ndim > 1:
             num_cnt += len(target)
         else:
             num_cnt += 1
-
-    print(f"轮廓数量：{num_cnt} (A4外框: {len(a4_out)}, 内沿: {len(border_in)}, 目标: {len(target)})")
+    if len(target) > 0:
+        print(f"轮廓数量：{num_cnt} (A4外框: {len(a4_out)}, 内沿: {len(border_in)}, 目标: {len(target)})")
 
     img_all = img.copy()
     
@@ -474,7 +472,35 @@ def caculate_circle_x(cnts):
     pos_text = (int(x - tw / 2), int(y - th / 2 - 10))
 
     return D_pixel,radius,pos_circle,pos_text
+
+def caculate_square_incline(cnts):
+    # 计算边长
+    # 1. 计算像素长度和宽度（重新排序角点）
+    rect = np.zeros((4, 2), dtype="float32")   
+
+    sum = cnts.sum(axis=1)
+    rect[0] = cnts[np.argmin(sum)]       # 左上 TL
+    rect[2] = cnts[np.argmax(sum)]       # 右下 BR
+    diff = np.diff(cnts, axis=1)
+    rect[1] = cnts[np.argmin(diff)]    # 右上 TR
+    rect[3] = cnts[np.argmax(diff)]    # 左下 BL
+
+    (tl, tr, br, bl) = rect
     
+    
+    # 计算左边和右边的像素高度
+    height_left = np.linalg.norm(tl - bl)
+    height_right = np.linalg.norm(tr - br)
+            
+    # 在透视投影中，对边不一定相等
+    # 计算平均值，或者根据竞赛需求取最大值
+  
+    h_l = max(height_left, height_right)
+    h_r = min(height_left, height_right)
+
+            
+            
+    return h_l,h_r  
 def split_fused_squares(cand_contour, gray_img, debug_image=None):
     """
     直接利用原图灰度图进行角点检测并拟合
@@ -508,7 +534,7 @@ def split_fused_squares(cand_contour, gray_img, debug_image=None):
     corners = cv2.goodFeaturesToTrack(roi_gray, maxCorners=20, 
                                       qualityLevel=0.3, minDistance=5, blockSize=5)
     
-    print(f"拟合顶点数量：{len(corners) if corners is not None else 0}")
+    #print(f"拟合顶点数量：{len(corners) if corners is not None else 0}")
 
     if corners is None:
         print("未检测到任何角点，无法拆分")
@@ -561,7 +587,7 @@ def split_fused_squares(cand_contour, gray_img, debug_image=None):
             if l1 > 0 and l2 > 0:
                 cos_theta = np.dot(v1, v2) / (l1 * l2)
                 angle = np.degrees(np.arccos(np.clip(cos_theta, -1.0, 1.0)))
-                print(f"第 {i+1} 点 {p_center} 的自适应半径: {adaptive_radius:.2f}, 夹角: {angle:.2f} 度")
+                #print(f"第 {i+1} 点 {p_center} 的自适应半径: {adaptive_radius:.2f}, 夹角: {angle:.2f} 度")
                 # 直角判定
                 if 75 <= angle <= 105 or angle<7 or angle>173:
                     pools_new.append(p_center)
