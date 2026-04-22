@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
 
-
-
 def get_conTours(image_path):
     
     """
@@ -138,6 +136,7 @@ def get_conTours_ex(image_path):
     #150：高阈值（threshold2），用于检测强边缘。梯度值高于此阈值的像素被认为是确定的边缘。
 
     #cv2.imshow("Edged", edged)
+    #cv2.imshow("Edged", edged)
     
     # 3. 寻找轮廓并排序（取面积最大的，即 A4 纸外框）
     cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
@@ -160,6 +159,34 @@ def get_conTours_ex(image_path):
         if peri == 0:
             continue
 
+        # 稍微减小 epsilon 参数 (0.02 -> 0.015)，防止三角形顶点被过度简化
+        approx = cv2.approxPolyDP(cnt, 0.015 * peri, True)
+        
+        # 凸性检测
+        # if not cv2.isContourConvex(approx):
+        #     continue
+
+        num_vertices = len(approx)
+        rect = cv2.minAreaRect(cnt)
+        (x, y), (w, h), angle = rect
+        rect = cv2.minAreaRect(cnt)
+        (x, y), (w, h), angle = rect
+        ratio = w / h if h != 0 else 0
+        rect_area = w * h
+        extent = area / rect_area if rect_area != 0 else 0
+
+       
+        # . 矩形/A4纸判定 (通常拟合为 4 个点)
+        if num_vertices == 4:
+            # 矩形占空比很高，通常 > 0.7 (理想是 1.0)
+            if extent > 0.65 and 0.5 < ratio < 2.0:
+                good_cnts.append(cnt)
+                
+        
+    
+    ft_cnts = filter_similar_contours(good_cnts)
+    
+    a4_out, border_in, target = get_challenge_contours(ft_cnts)
         # # 保持凸性检测
         # if not cv2.isContourConvex(approx):
         #     continue
@@ -295,6 +322,7 @@ def get_final_nested_contours(cnts):
         return a4_out, border_in, target
     
     print("未找到完整的三层嵌套结构，返回发现的所有层")
+    return None # 如果不足三层，则返回发现的所有层
     return None # 如果不足三层，则返回发现的所有层
 
 def filter_similar_contours(cnts, dist_thresh=10, area_ratio_thresh=0.9, shape_thresh=0.1):
@@ -432,6 +460,7 @@ def caculate_circle_x(cnts):
 # 1. 计算像素直径
     (x, y), radius = cv2.minEnclosingCircle(cnts)#拟合最小外接圆
     D_pixel = radius * 2
+    
     
 
     # 2. 绘制识别结果用于预览确认
