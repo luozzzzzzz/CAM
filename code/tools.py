@@ -19,10 +19,10 @@ def get_conTours(image_path):
 
     # 2. 预处理：灰度化 -> 高斯滤波 -> 边缘检测
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    """
-    gray[gray < 50] = 0
-    gray[gray >= 50] = 255#二值化，主要去除阴影
-    """
+    
+    gray[gray < 80] = 0
+    gray[gray >= 80] = 255#二值化，主要去除阴影
+    
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
     edged = cv2.Canny(blurred, 100, 150)
@@ -112,6 +112,7 @@ def get_conTours(image_path):
     #cv2.waitKey(-1)#调试时开启
 
     return a4_out, border_in, target, gray
+
 def get_conTours_ex(image_path):
     img = cv2.imread(image_path)
     if img is None:
@@ -122,8 +123,8 @@ def get_conTours_ex(image_path):
     # 2. 预处理：灰度化 -> 高斯滤波 -> 边缘检测
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    gray[gray < 50] = 0
-    gray[gray >= 50] = 255#二值化，主要去除阴影
+    gray[gray < 80] = 0
+    gray[gray >= 80] = 255#二值化，主要去除阴影
 
     #调试开启
     # cv2.namedWindow("Gray", cv2.WINDOW_NORMAL)
@@ -251,57 +252,6 @@ def get_cplx_conTours(ft_cnts,gray_img):
 
     return a4_out, border_in, targets
 
-def get_challenge_conTours(cnts):
-    """
-    针对发挥部分：锁定A4外框、黑框内沿，并获取内部所有独立的正方形目标 
-    """
-    # 1. 确保按面积从大到小排序 [cite: 3]
-    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
-    
-    a4_out = None
-    border_in = None
-    targets = []
-
-    # 2. 第一步：寻找 A4 外框和黑框内沿 (父子关系)
-    for i in range(len(cnts)):
-        c_parent = cnts[i]
-        for j in range(i + 1, len(cnts)):
-            c_child = cnts[j]
-            # 计算子轮廓质心 [cite: 3]
-            M = cv2.moments(c_child)
-            if M["m00"] == 0: continue
-            centroid = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-            
-            # 判断嵌套关系 [cite: 3]
-            if cv2.pointPolygonTest(c_parent, centroid, False) >= 0:
-                a4_out = c_parent
-                border_in = c_child
-                break
-        if a4_out is not None: break
-
-    # 3. 第二步：在 border_in 内部搜集所有符合正方形特征的轮廓
-    if border_in is not None:
-        for k in range(len(cnts)):
-            cand = cnts[k]
-            # 跳过已经识别的外框和内框
-            if cand is a4_out or cand is border_in: continue
-            
-            # 特征预筛选：必须在内沿内部 [cite: 3]
-            M = cv2.moments(cand)
-            if M["m00"] == 0: continue
-            centroid = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-            
-            if cv2.pointPolygonTest(border_in, centroid, False) >= 0:
-                # 形状判定：正方形 (4个顶点) 
-                peri = cv2.arcLength(cand, True)
-                approx = cv2.approxPolyDP(cand, 0.02 * peri, True)
-                if len(approx) == 4:
-                    targets.append(cand)
-    if targets:
-        targets = sorted(targets, key=lambda c: cv2.arcLength(c, True), reverse=True)
-    # 返回结果：[A4外框, 黑框内沿, 目标列表]
-    return a4_out, border_in, targets
-    
 def get_final_nested_contours(cnts):
     """
     寻找最深的嵌套链，并保留面积最小的三个轮廓
